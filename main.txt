@@ -1,0 +1,179 @@
+﻿#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <SoftwareSerial.h>
+
+
+#define OLED_RESET 4
+Adafruit_SSD1306 display(OLED_RESET);
+
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define beeper 8
+#define sensor A0
+#define co2Zero 55
+#define values A1
+
+
+SoftwareSerial espSerial(5, 6);
+
+
+int gasLevel = 0;
+String quality = "";
+
+
+void setup() {
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+  
+  Serial.begin(115200);
+  espSerial.begin(115200);
+  
+  pinMode(beeper, OUTPUT);
+  pinMode(sensor, INPUT);
+  pinMode(values, INPUT);
+}
+
+
+void loop() {
+  // Gas sensor reading
+  gasLevel = analogRead(sensor);
+  
+  if (gasLevel < 300) {
+    quality = "Excellent";
+  }
+  else if (gasLevel >= 300 && gasLevel < 650) {
+    quality = "Good";
+  }
+  else if (gasLevel >= 650 && gasLevel < 800) {
+    quality = "Lightly Polluted";
+  }
+  else if (gasLevel >= 800 && gasLevel < 1000) {
+    quality = "Moderately Polluted";
+  }
+  else {
+    quality = "Heavily Polluted";
+  }
+  
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.clearDisplay();
+  
+  // Gas sensor data display
+  display.setCursor(45, 9);
+  display.println("PPM:");
+  display.setCursor(65, 9);
+  display.println(gasLevel);
+  
+  display.setCursor(0, 0);
+  display.println("Air Quality:");
+  display.setCursor(0, 8);
+  display.println(quality);
+  
+  int pm = gasLevel / 100 * 2;
+  
+  // PM level display
+  display.setCursor(0, 25);
+  display.println("PM level:");
+  display.setCursor(54, 25);
+  display.println(pm);
+  
+  // CO2 sensor reading
+  int co2now[10];
+  int co2raw = 0;
+  int co2ppm = 0;
+  int zzz = 0;
+  
+  for (int x = 0; x < 10; x++) {
+    co2now[x] = analogRead(A0);
+    delay(20);
+  }
+  
+  for (int x = 0; x < 10; x++) {
+    zzz = zzz + co2now[x];
+  }
+  
+  co2raw = zzz / 10;
+  co2ppm = co2raw - co2Zero;
+  
+  // CO2 PPM display
+  display.setCursor(0, 17);
+  display.println("CO2 PPM:");
+  display.setCursor(54, 17);
+  display.println(co2ppm);
+  
+  delay(50);
+  display.display();
+  delay(5000);
+  
+  // Other sensor value display (graph)
+  int valuesReading = analogRead(A1);
+  int grafX = map(valuesReading, 0, 600, 10, 100);
+  
+  display.clearDisplay();
+  display.fillRect(0, 0, grafX, 8, WHITE);
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  
+  display.setCursor(20, 17);
+  display.println("LOW");
+  
+  display.setCursor(50, 17);
+  display.println("BUTANE");
+  
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(35, 25);
+  display.print("LEVELS");
+  
+  display.setTextSize(1);
+  display.setCursor(48, 9);
+  display.print(valuesReading);
+  
+  grafX = map(valuesReading, 0, 600, 0, 127);
+  display.fillRect(0, 0, grafX, 8, WHITE);
+  
+  // High value alert
+  if (valuesReading > 600) {
+    display.fillRect(0, 0, 144, 64, SSD1306_WHITE);
+    display.setTextColor(BLACK);
+    display.setTextSize(1);
+    display.setCursor(5, 16);
+    display.print("BUTANE");
+    display.setTextSize(1);
+    display.setCursor(50, 16);
+    display.print("(C4H10)");
+    display.setTextSize(1);
+    display.setCursor(30, 24);
+    display.print("LEVELS!!");
+    display.setTextColor(BLACK);
+    display.setTextSize(2);
+    display.setCursor(39, 1);
+    display.print("HIGH");
+  }
+  
+  // Data transmission
+  espSerial.println(co2ppm);
+  Serial.println(co2ppm);
+  
+  delay(2000);
+  
+  espSerial.println(pm);
+  Serial.println(pm);
+  
+  delay(1500);
+  
+  espSerial.println(gasLevel);
+  Serial.println(gasLevel);
+  
+  delay(1000);
+  
+  espSerial.println(quality);
+  Serial.println(quality);
+  
+  delay(500);
+  display.display();
+  delay(5000);
+}
